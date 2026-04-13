@@ -8,6 +8,10 @@ interface AlertEmailPayload {
 }
 
 export async function sendAlertEmail({ to, matches, threshold }: AlertEmailPayload) {
+  if (process.env.DEMO_MODE === 'true') {
+    console.log(`[demo] sendAlertEmail → would send to ${to}: ${matches.length} matches above ${threshold}%`);
+    return;
+  }
   const jobList = matches
     .map(m => `
       <tr>

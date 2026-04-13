@@ -36,6 +36,10 @@ Return ONLY valid JSON.`,
 
 /** Compute match scores for all new job listings for a given user */
 export async function computeMatches(userId: string): Promise<number> {
+  if (process.env.DEMO_MODE === 'true') {
+    console.log('[demo] matchAgent → scores already pre-populated in store');
+    return 0;
+  }
   // Get user's CV profile
   const { data: cv } = await supabase
     .from('cv_profiles')
@@ -51,7 +55,7 @@ export async function computeMatches(userId: string): Promise<number> {
     .select('job_id')
     .eq('user_id', userId);
 
-  const scoredIds = (scored ?? []).map(s => s.job_id as string);
+  const scoredIds = (scored ?? []).map((s: any) => s.job_id as string);
 
   let query = supabase
     .from('job_listings')

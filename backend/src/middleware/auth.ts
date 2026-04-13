@@ -1,8 +1,16 @@
 import type { Request, Response, NextFunction } from 'express';
 import { supabase } from '../lib/supabase.js';
+import { DEMO_PROFILE } from '../demo/data.js';
 
 /** Verify Supabase JWT from Authorization: Bearer <token> header */
 export async function requireAuth(req: Request, res: Response, next: NextFunction) {
+  // ── DEMO_MODE: accept any Bearer token, inject demo user ──────────────────
+  if (process.env.DEMO_MODE === 'true') {
+    req.user = DEMO_PROFILE;
+    next();
+    return;
+  }
+
   const authHeader = req.headers.authorization;
   if (!authHeader?.startsWith('Bearer ')) {
     res.status(401).json({ error: 'Missing or invalid Authorization header' });

@@ -2,6 +2,7 @@ import pdf from 'pdf-parse';
 import mammoth from 'mammoth';
 import { claude, CLAUDE_MODEL } from '../lib/claude.js';
 import { supabase } from '../lib/supabase.js';
+import { DEMO_CV } from '../demo/data.js';
 import type { CVProfile, ATSSuggestion, ExperienceEntry, EducationEntry } from '../types/index.js';
 
 /** Parse raw text from PDF or DOCX buffer */
@@ -33,17 +34,11 @@ async function parseWithClaude(rawText: string): Promise<ParsedCV> {
     system: `You are an expert ATS (Applicant Tracking System) analyzer for the Polish job market.
 Analyze the provided CV text and return a JSON object with this exact structure:
 {
-  "skills": ["skill1", "skill2", ...],          // top 20 technical and soft skills
-  "experience": [                                // work experience entries
-    { "company": "", "role": "", "start": "", "end": "", "description": "" }
-  ],
-  "education": [                                 // education entries
-    { "institution": "", "degree": "", "field": "", "graduation": "" }
-  ],
-  "ats_score": 75,                              // 0-100, ATS readability score
-  "suggestions": [                              // top 3 improvement suggestions
-    { "issue": "", "fix": "", "impact": "high|medium|low" }
-  ]
+  "skills": ["skill1", "skill2", ...],
+  "experience": [{ "company": "", "role": "", "start": "", "end": "", "description": "" }],
+  "education": [{ "institution": "", "degree": "", "field": "", "graduation": "" }],
+  "ats_score": 75,
+  "suggestions": [{ "issue": "", "fix": "", "impact": "high|medium|low" }]
 }
 Return ONLY valid JSON, no markdown, no explanation.`,
     messages: [{ role: 'user', content: `CV text:\n\n${rawText}` }],
@@ -51,7 +46,6 @@ Return ONLY valid JSON, no markdown, no explanation.`,
 
   const content = message.content[0];
   if (content.type !== 'text') throw new Error('Unexpected response from Claude');
-
   return JSON.parse(content.text) as ParsedCV;
 }
 
@@ -61,6 +55,14 @@ export async function analyzeCV(
   mimeType: string,
   userId: string,
 ): Promise<CVProfile> {
+  // ── DEMO_MODE: skip real parsing, return pre-written demo CV ───────────────
+  if (process.env.DEMO_MODE === 'true') {
+    console.log('[demo] cvAnalyzer → returning demo CV profile');
+    // Simulate a brief processing delay for realism
+    await new Promise(r => setTimeout(r, 1200));
+    return { ...DEMO_CV, user_id: userId, updated_at: new Date().toISOString() };
+  }
+
   const rawText = await extractText(buffer, mimeType);
   const parsed = await parseWithClaude(rawText);
 

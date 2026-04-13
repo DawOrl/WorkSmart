@@ -5,6 +5,7 @@
   "workspaces": ["frontend", "backend"],
   "scripts": {
     "dev": "concurrently \"npm run dev -w backend\" \"npm run dev -w frontend\"",
+    "demo": "cp backend/.env.demo backend/.env && cp frontend/.env.demo frontend/.env.local && npm run dev",
     "build": "npm run build -w backend && npm run build -w frontend",
     "lint": "npm run lint -w frontend && npm run lint -w backend",
     "type-check": "npm run type-check -w frontend && npm run type-check -w backend"

@@ -3,6 +3,10 @@ import { sendAlertEmail } from '../email/sender.js';
 
 /** Check all active alerts and send emails for matches above threshold */
 export async function processAlerts(): Promise<void> {
+  if (process.env.DEMO_MODE === 'true') {
+    console.log('[demo] alertAgent → skipping email send in demo mode');
+    return;
+  }
   const { data: alerts } = await supabase
     .from('alerts')
     .select('*, user:profiles(email)')
