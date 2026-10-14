@@ -8,7 +8,7 @@ import { supabase } from '../lib/supabase.js';
 const router = Router();
 
 const createSchema = z.object({
-  job_id: z.string().uuid(),
+  job_id: z.string().min(1),
   status: z.enum(['sent', 'interview', 'rejected', 'offer']).default('sent'),
   notes: z.string().optional(),
   follow_up_at: z.string().datetime().optional(),

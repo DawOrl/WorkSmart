@@ -22,7 +22,7 @@ class MockQueryBuilder {
   }
 
   // ── Operation setters ───────────────────────────────────────────────────────
-  select(cols = '*', opts?: { count?: string }) {
+  select(_cols = '*', opts?: { count?: string }) {
     if (this._op === 'insert' || this._op === 'update' || this._op === 'upsert') {
       this._afterWrite = true;
     } else {
@@ -83,8 +83,14 @@ class MockQueryBuilder {
     return this;
   }
 
-  or(_condition: string) {
-    // Simplified: ignore OR filters in demo mode
+  or(condition: string) {
+    // Supports the "col.ilike.%term%,col2.ilike.%term%" form used by the routes
+    const parts = condition.split(',').map(part => {
+      const [col, op, ...rest] = part.split('.');
+      const pattern = rest.join('.');
+      return { col, op, re: new RegExp(pattern.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/%/g, '.*'), 'i') };
+    });
+    this._filters.push(x => parts.some(({ col, op, re }) => op === 'ilike' && re.test(String(x[col] ?? ''))));
     return this;
   }
 
@@ -142,7 +148,7 @@ class MockQueryBuilder {
     }
   }
 
-  private _execInsert(tbl: any[]) {
+  private _execInsert(_tbl: any[]) {
     const rows = (Array.isArray(this._payload) ? this._payload : [this._payload]).map(r => ({
       id: crypto.randomUUID(),
       created_at: new Date().toISOString(),

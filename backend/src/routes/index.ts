@@ -7,9 +7,13 @@ import alertsRouter from './alerts.js';
 import letterRouter from './letter.js';
 import paymentsRouter from './payments.js';
 import webhooksRouter from './webhooks.js';
+import { requireAuth } from '../middleware/auth.js';
 
 export function mountRoutes(app: Express) {
   app.get('/health', (_req, res) => res.json({ status: 'ok', timestamp: new Date().toISOString() }));
+
+  /** Current user's profile (plan, e-mail, name) */
+  app.get('/api/me', requireAuth, (req, res) => { res.json(req.user); });
 
   app.use('/api/cv', cvRouter);
   app.use('/api/jobs', jobsRouter);

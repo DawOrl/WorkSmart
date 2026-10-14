@@ -5,6 +5,7 @@ export type UserPlan = 'free' | 'pro' | 'premium';
 export interface UserProfile {
   id: string;
   email: string;
+  full_name?: string;
   plan: UserPlan;
   stripe_customer_id?: string;
   created_at: string;

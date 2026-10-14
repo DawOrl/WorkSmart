@@ -9,7 +9,7 @@ import { generateLetter } from '../agents/letterWriter.js';
 const router = Router();
 
 const letterSchema = z.object({
-  job_id: z.string().uuid(),
+  job_id: z.string().min(1),
   style: z.enum(['formal', 'conversational', 'creative']).default('formal'),
   language: z.enum(['pl', 'en']).default('pl'),
 });
