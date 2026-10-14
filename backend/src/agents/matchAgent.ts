@@ -1,6 +1,5 @@
 import { supabase } from '../lib/supabase.js';
 import { claude, CLAUDE_MODEL } from '../lib/claude.js';
-import type { MatchScore } from '../types/index.js';
 
 interface MatchResult {
   score: number;

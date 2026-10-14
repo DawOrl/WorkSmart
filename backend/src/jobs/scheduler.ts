@@ -3,6 +3,12 @@ import { runAllScrapers } from '../agents/jobScraper.js';
 import { processAlerts } from '../agents/alertAgent.js';
 
 export function startScheduler() {
+  // Demo mode never touches real job portals or sends e-mails.
+  if (process.env.DEMO_MODE === 'true') {
+    console.log('[demo] scheduler disabled (no scraping, no alert e-mails)');
+    return;
+  }
+
   // Scrape job listings at 07:00 and 19:00 every day
   cron.schedule('0 7,19 * * *', async () => {
     console.log('[scheduler] Starting scheduled job scraping...');

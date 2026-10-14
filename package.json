@@ -5,13 +5,16 @@
   "workspaces": ["frontend", "backend"],
   "scripts": {
     "dev": "concurrently \"npm run dev -w backend\" \"npm run dev -w frontend\"",
-    "demo": "cp backend/.env.demo backend/.env && cp frontend/.env.demo frontend/.env.local && npm run dev",
+    "demo": "npm run dev:demo -w frontend",
+    "demo:api": "concurrently \"DEMO_MODE=true npm run dev -w backend\" \"VITE_DEMO_MODE=true VITE_API_URL=http://localhost:3001 npm run dev -w frontend\"",
     "build": "npm run build -w backend && npm run build -w frontend",
+    "build:demo": "npm run build:demo -w frontend",
     "lint": "npm run lint -w frontend && npm run lint -w backend",
     "type-check": "npm run type-check -w frontend && npm run type-check -w backend"
   },
   "devDependencies": {
-    "concurrently": "^9.1.2"
+    "concurrently": "^9.1.2",
+    "typescript-eslint": "^8.71.2"
   },
   "engines": {
     "node": ">=22.0.0"

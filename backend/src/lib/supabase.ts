@@ -18,7 +18,6 @@ if (process.env.DEMO_MODE !== 'true' && (!supabaseUrl || !supabaseServiceKey)) {
  * Typed as `any` because we don't have generated DB types yet (run `supabase gen types`
  * once you have a real project to replace this with a strongly-typed client).
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const supabase: any =
   process.env.DEMO_MODE === 'true'
     ? (mockSupabase as unknown as ReturnType<typeof createClient>)
