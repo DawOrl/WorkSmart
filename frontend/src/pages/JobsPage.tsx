@@ -72,8 +72,8 @@ export default function JobsPage() {
       />
 
       {/* ── Filters ─────────────────────────────────────────────────────── */}
-      <div className="mb-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_11rem_11rem_auto]" role="search">
-        <label className="relative sm:col-span-2 lg:col-span-1">
+      <div className="mb-4 grid grid-cols-2 gap-2 lg:grid-cols-[minmax(0,1fr)_11rem_11rem_auto]" role="search">
+        <label className="relative col-span-2 lg:col-span-1">
           <span className="sr-only">Szukaj w ofertach</span>
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
           <input
@@ -87,7 +87,7 @@ export default function JobsPage() {
         <label>
           <span className="sr-only">Tryb pracy</span>
           <select value={filters.remote_type ?? ''} onChange={e => setFilter('remote_type', e.target.value || undefined)} className={inputClass}>
-            <option value="">Każdy tryb pracy</option>
+            <option value="">Każdy tryb</option>
             <option value="remote">Zdalnie</option>
             <option value="hybrid">Hybrydowo</option>
             <option value="office">Stacjonarnie</option>
@@ -96,11 +96,11 @@ export default function JobsPage() {
         <label>
           <span className="sr-only">Portal</span>
           <select value={filters.source ?? ''} onChange={e => setFilter('source', e.target.value || undefined)} className={inputClass}>
-            <option value="">Wszystkie portale</option>
+            <option value="">Każdy portal</option>
             {Object.entries(sourceLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
           </select>
         </label>
-        <div className="flex h-11 rounded-md border border-input bg-surface p-1 sm:col-span-2 lg:col-span-1" role="group" aria-label="Sortowanie">
+        <div className="col-span-2 flex h-11 rounded-md border border-input bg-surface p-1 lg:col-span-1" role="group" aria-label="Sortowanie">
           {sortOptions.map(o => (
             <button
               key={o.value}
@@ -169,8 +169,8 @@ export default function JobsPage() {
 
 function JobRow({ job, score }: { job: JobListing; score?: number }) {
   return (
-    <li className="relative grid gap-x-6 gap-y-2 px-5 py-4 transition-colors hover:bg-sunken/50 lg:grid-cols-[minmax(0,1fr)_9.5rem_9.5rem_11rem] lg:items-center">
-      <div className="min-w-0">
+    <li className="relative grid grid-cols-2 gap-x-4 gap-y-2 px-5 py-4 transition-colors hover:bg-sunken/50 lg:grid-cols-[minmax(0,1fr)_9.5rem_9.5rem_11rem] lg:items-center lg:gap-x-6">
+      <div className="col-span-2 min-w-0 lg:col-span-1">
         <Link to={`/jobs/${job.id}`} className="font-medium after:absolute after:inset-0 after:content-[''] focus-visible:outline-none focus-visible:after:rounded-md focus-visible:after:outline focus-visible:after:outline-2 focus-visible:after:outline-ring">
           {job.title}
         </Link>
@@ -184,9 +184,9 @@ function JobRow({ job, score }: { job: JobListing; score?: number }) {
       <p className="text-meta lg:text-sm">{placeLabel(job.location, job.remote_type)}</p>
       <p className="num text-meta lg:text-sm">{formatSalary(job.salary_min, job.salary_max, job.currency)}</p>
       {score !== undefined ? (
-        <MatchMeter score={score} size="sm" className="max-w-[16rem]" />
+        <MatchMeter score={score} size="sm" className="col-span-2 max-w-[16rem] lg:col-span-1" />
       ) : (
-        <p className="text-meta text-muted-foreground">Jeszcze nie policzone</p>
+        <p className="col-span-2 text-meta text-muted-foreground lg:col-span-1">Jeszcze nie policzone</p>
       )}
     </li>
   );

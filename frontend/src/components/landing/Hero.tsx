@@ -29,7 +29,7 @@ export default function Hero() {
         </div>
 
         {/* Sculpture: your profile (pine key) above an offer's requirements (plaster block). */}
-        <div className="relative mx-auto w-full max-w-[560px] animate-settle [animation-delay:120ms]">
+        <div className="relative mx-auto w-full max-w-[480px] animate-settle [animation-delay:120ms] lg:max-w-[560px]">
           <img
             src="/img/dopasowanie.webp"
             alt="Rzeźba: zielony klucz z zębami różnej długości zawieszony nad jasnym blokiem z wyciętymi szczelinami. Zęby trafiają dokładnie w szczeliny."
@@ -38,7 +38,7 @@ export default function Hero() {
             fetchPriority="high"
             className="w-full"
           />
-          <figure className="absolute bottom-[4%] left-0 w-[min(19rem,78%)] rounded-lg border bg-surface p-4 shadow-lift sm:-left-6 lg:-left-10">
+          <figure className="relative -mt-10 ml-auto w-[min(20rem,88%)] rounded-lg border bg-surface p-4 shadow-lift lg:absolute lg:bottom-[4%] lg:-left-10 lg:mt-0 lg:w-[19rem]">
             <p className="text-meta text-muted-foreground">Przykład z listy dopasowań · {sourceLabels.nofluffjobs}</p>
             <p className="mt-1 font-medium leading-snug">Mid Frontend Developer</p>
             <p className="text-meta text-muted-foreground">Kwadrat Software House · zdalnie</p>
