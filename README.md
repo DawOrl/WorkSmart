@@ -15,7 +15,7 @@
 
 | Warstwa | Technologia |
 |---|---|
-| Frontend | React 19 + Vite + TypeScript + Tailwind CSS + shadcn/ui + ReactBits |
+| Frontend | React 19 + Vite + TypeScript + Tailwind CSS (własne komponenty UI) |
 | Backend | Node.js + Express 5 + TypeScript |
 | Baza danych | Supabase (PostgreSQL + pgvector) |
 | AI | Claude API (Anthropic) |
@@ -60,6 +60,39 @@ npm run dev
 ```
 
 Frontend dostępny na `http://localhost:5173`, backend na `http://localhost:3001`.
+
+## Tryb demo (bez kluczy)
+
+Są dwa tryby demo. Żaden nie nadpisuje Twoich plików ze zmiennymi środowiskowymi.
+
+| Polecenie | Co robi |
+|---|---|
+| `npm run demo` | Statyczne demo: sam frontend, API odpowiada w przeglądarce z danych w `backend/src/demo/`. Nie potrzebuje backendu, kluczy ani bazy. |
+| `npm run demo:api` | Frontend z mockiem logowania + backend Express z `DEMO_MODE=true` (dane w pamięci, bez scrapowania i bez wysyłki e-maili). Skrypt ustawia zmienne w linii poleceń, działa w powłokach POSIX (macOS, Linux). |
+
+W obu trybach logowanie przyjmuje dowolny e-mail i hasło, a konto należy do przykładowej kandydatki z wgranym CV, dopasowaniami, trackerem i alertami. Dane demo (`backend/src/demo/data.ts`, `backend/src/demo/letter.ts`) są jedynym źródłem prawdy dla obu trybów. Firmy i osoby w danych są fikcyjne.
+
+Statyczne demo buduje się poleceniem `npm run build:demo` (wynik w `frontend/dist`). Tryb `--mode static-demo` celowo nie czyta lokalnych plików ze zmiennymi z katalogu `frontend/`, więc Twoje klucze nie trafią do paczki.
+
+## Wdrożenie demo na Vercel
+
+Publiczne demo to statyczny build frontendu. Nie potrzebuje backendu, bazy ani żadnych zmiennych środowiskowych. Cała konfiguracja jest w `vercel.json` w katalogu głównym repo: instalacja `npm ci`, build `npm run build:demo`, katalog wyjściowy `frontend/dist` i przekierowanie wszystkich ścieżek SPA na `index.html`.
+
+1. Na vercel.com wybierz **Add New… → Project** i zaimportuj repozytorium `DawOrl/WorkSmart`.
+2. **Root Directory**: zostaw katalog główny repo (`./`). Nie ustawiaj `frontend`, bo build korzysta z danych demo w `backend/src/demo/`.
+3. **Framework Preset**: Vite (Vercel odczyta go z `vercel.json`). Pól Build Command, Output Directory i Install Command nie zmieniaj, `vercel.json` je nadpisuje.
+4. **Environment Variables**: nie dodawaj żadnych. W szczególności nie wpisuj kluczy Supabase ani Stripe do projektu demo.
+5. Kliknij **Deploy**. Po buildzie sprawdź stronę główną, `/auth` (logowanie dowolnymi danymi), `/dashboard`, `/jobs`, kartę oferty, `/tracker`, `/cv`, `/letter` oraz odświeżenie przeglądarki na podstronie (np. `/tracker`), które musi działać dzięki przekierowaniu SPA.
+6. Opcjonalnie: **Settings → Domains**, żeby nadać demo własny adres.
+
+Ten sam build sprawdzisz lokalnie:
+
+```bash
+npm run build:demo
+cd frontend && npx vite preview --port 4173
+```
+
+Uwaga: workflow `.github/workflows/deploy.yml` wdraża zwykły (nie-demo) frontend z katalogu `frontend/` przy każdym pushu na `main`, jeśli w repo są sekrety `VERCEL_*`. Projekt demo podpięty przez integrację Git Vercela działa niezależnie od niego. Jeśli repo ma służyć tylko jako demo, wyłącz ten workflow albo usuń sekrety, żeby wdrożenia się nie dublowały.
 
 ## Model cenowy
 

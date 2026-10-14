@@ -18,7 +18,8 @@
     "noFallthroughCasesInSwitch": true,
     "baseUrl": ".",
     "paths": {
-      "@/*": ["src/*"]
+      "@/*": ["src/*"],
+      "@demo-data/*": ["../backend/src/demo/*"]
     }
   },
   "include": ["src"]

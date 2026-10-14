@@ -4,10 +4,12 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:demo": "vite --mode static-demo",
     "build": "tsc -b && vite build",
+    "build:demo": "tsc -b && vite build --mode static-demo",
     "preview": "vite preview",
-    "lint": "eslint src --ext .ts,.tsx",
-    "type-check": "tsc --noEmit"
+    "lint": "eslint src",
+    "type-check": "tsc -b"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.49.4",

@@ -1,58 +1,85 @@
 import { createClient } from '@supabase/supabase-js';
+import { isDemo } from './env';
 
-const isDemoMode = import.meta.env.VITE_DEMO_MODE === 'true';
+// ── Demo: mock Supabase auth, accepts any credentials ────────────────────────
+// The session lives in localStorage, so signing out really signs out and the
+// sign-in screen is reachable. Storage can be blocked (private mode), so every
+// access is guarded and falls back to memory.
+const SESSION_KEY = 'worksmart-demo-session';
+const DEMO_USER = { id: 'demo-user-00000000-0000-0000-0000-000000000001', email: 'demo@worksmart.pl' };
+const DEMO_SESSION = { access_token: 'demo-token', refresh_token: 'demo-refresh', user: DEMO_USER };
 
-// ── DEMO_MODE: mock Supabase auth – accepts any credentials ──────────────────
-const DEMO_SESSION = {
-  access_token: 'demo-token',
-  refresh_token: 'demo-refresh',
-  user: { id: 'demo-user-00000000-0000-0000-0000-000000000001', email: 'demo@worksmart.pl' },
-};
+type Listener = (event: string, session: typeof DEMO_SESSION | null) => void;
+
+let memorySignedIn = false;
+const listeners = new Set<Listener>();
+
+function readSignedIn() {
+  try {
+    return window.localStorage.getItem(SESSION_KEY) === '1';
+  } catch {
+    return memorySignedIn;
+  }
+}
+
+function writeSignedIn(value: boolean) {
+  memorySignedIn = value;
+  try {
+    if (value) window.localStorage.setItem(SESSION_KEY, '1');
+    else window.localStorage.removeItem(SESSION_KEY);
+  } catch {
+    // storage blocked: memory fallback above is enough for one tab
+  }
+}
+
+function emit(event: string) {
+  const session = readSignedIn() ? DEMO_SESSION : null;
+  listeners.forEach(cb => cb(event, session));
+}
 
 const mockSupabase = {
   auth: {
-    getSession: async () => ({ data: { session: DEMO_SESSION }, error: null }),
+    getSession: async () => ({ data: { session: readSignedIn() ? DEMO_SESSION : null }, error: null }),
 
-    onAuthStateChange: (cb: (event: string, session: any) => void) => {
-      // Fire immediately so useAuth picks up the demo session
-      setTimeout(() => cb('SIGNED_IN', DEMO_SESSION), 0);
-      return { data: { subscription: { unsubscribe: () => {} } } };
+    onAuthStateChange: (cb: Listener) => {
+      listeners.add(cb);
+      setTimeout(() => cb('INITIAL_SESSION', readSignedIn() ? DEMO_SESSION : null), 0);
+      return { data: { subscription: { unsubscribe: () => listeners.delete(cb) } } };
     },
 
-    signInWithPassword: async (_creds: { email: string; password: string }) => ({
-      data: { user: DEMO_SESSION.user, session: DEMO_SESSION },
-      error: null,
-    }),
+    signInWithPassword: async (_creds: { email: string; password: string }) => {
+      writeSignedIn(true);
+      emit('SIGNED_IN');
+      return { data: { user: DEMO_USER, session: DEMO_SESSION }, error: null };
+    },
 
-    signUp: async (creds: { email: string; password: string }) => ({
-      data: { user: { ...DEMO_SESSION.user, email: creds.email }, session: DEMO_SESSION },
-      error: null,
-    }),
+    signUp: async (creds: { email: string; password: string }) => {
+      writeSignedIn(true);
+      emit('SIGNED_IN');
+      return { data: { user: { ...DEMO_USER, email: creds.email }, session: DEMO_SESSION }, error: null };
+    },
 
     signOut: async () => {
-      // In demo mode, sign-out reloads the page to reset state
-      window.location.href = '/';
+      writeSignedIn(false);
+      emit('SIGNED_OUT');
       return { error: null };
     },
 
-    getUser: async () => ({ data: { user: DEMO_SESSION.user }, error: null }),
+    getUser: async () => ({ data: { user: readSignedIn() ? DEMO_USER : null }, error: null }),
   },
 
-  // Frontend doesn't query DB directly – all data goes through the backend API.
-  // This stub prevents errors if any component accidentally calls supabase.from().
+  // The frontend never queries tables directly; all data goes through the API.
   from: (_table: string) => ({
-    select: () => ({ data: [], error: null }),
+    upsert: async () => ({ data: null, error: null }),
+    select: async () => ({ data: [], error: null }),
   }),
 };
 
-// ── Real Supabase client (production) ─────────────────────────────────────────
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-
-if (!isDemoMode && (!supabaseUrl || !supabaseAnonKey)) {
-  throw new Error('Missing Supabase environment variables');
+function realClient() {
+  const url = import.meta.env.VITE_SUPABASE_URL;
+  const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+  if (!url || !anonKey) throw new Error('Missing Supabase environment variables');
+  return createClient(url, anonKey);
 }
 
-export const supabase: any = isDemoMode
-  ? mockSupabase
-  : createClient(supabaseUrl, supabaseAnonKey);
+export const supabase: any = isDemo ? mockSupabase : realClient();
