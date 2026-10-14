@@ -1,8 +1,12 @@
 import rateLimit from 'express-rate-limit';
 
+// Demo mode serves in-memory data only, so a click-through of the whole app
+// (several requests per screen) must not hit the production limit.
+const isDemo = process.env.DEMO_MODE === 'true';
+
 export const rateLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100,                  // 100 requests per window per IP
+  max: isDemo ? 1000 : 100,  // requests per window per IP
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Too many requests, please try again later.' },
