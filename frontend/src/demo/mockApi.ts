@@ -178,8 +178,9 @@ on('post', '/api/letter/generate', async ({ config }) => {
 export async function mockAdapter(config: InternalAxiosRequestConfig): Promise<AxiosResponse> {
   const method = (config.method ?? 'get').toLowerCase();
   const url = new URL(config.url ?? '/', window.location.origin);
+  // Responses are copies: callers must never hold references into the in-memory store.
   const respond = (status: number, data: unknown): AxiosResponse => ({
-    data, status, statusText: String(status), headers: new AxiosHeaders(), config, request: {},
+    data: data === null || data === undefined ? data : structuredClone(data), status, statusText: String(status), headers: new AxiosHeaders(), config, request: {},
   });
 
   await wait(180 + Math.round(Math.random() * 160));

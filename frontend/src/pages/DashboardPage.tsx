@@ -97,8 +97,7 @@ export default function DashboardPage() {
           </>
         }
       />
-      <p className="sr-only" aria-live="polite">{refreshNote}</p>
-      {refreshNote && <p className="-mt-3 mb-5 text-meta text-muted-foreground">{refreshNote}</p>}
+      <p role="status" className={refreshNote ? '-mt-3 mb-5 text-meta text-muted-foreground' : 'sr-only'}>{refreshNote}</p>
 
       {error && <ErrorState message={error} onRetry={reload} className="mb-6" />}
 
