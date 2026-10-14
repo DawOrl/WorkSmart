@@ -1,43 +1,28 @@
 import { Outlet } from 'react-router-dom';
 import Navbar from './Navbar';
 import Sidebar from './Sidebar';
+import MobileNav from './MobileNav';
+import { isDemo } from '@/lib/env';
 
 export default function PageLayout() {
   return (
-    <div className="flex h-screen overflow-hidden" style={{ background: 'linear-gradient(135deg, #f0f6ff 0%, #faf8ff 100%)' }}>
+    <div className="min-h-dvh lg:grid lg:grid-cols-[236px_minmax(0,1fr)]">
+      <a href="#tresc" className="sr-only z-50 rounded-md bg-surface px-4 py-2 focus:not-sr-only focus:fixed focus:left-4 focus:top-4">
+        Przejdź do treści
+      </a>
       <Sidebar />
-      <div className="flex flex-1 flex-col overflow-hidden">
+      <div className="min-w-0">
         <Navbar />
-        <main className="relative flex-1 overflow-y-auto p-6">
-          {/* Subtle dot grid */}
-          <div
-            className="pointer-events-none fixed inset-0 opacity-[0.035]"
-            style={{
-              backgroundImage: 'radial-gradient(circle, #64748b 1px, transparent 1px)',
-              backgroundSize: '24px 24px',
-            }}
-          />
-          {/* Ambient glow – top right */}
-          <div
-            className="pointer-events-none fixed right-0 top-0 h-[400px] w-[400px] opacity-30"
-            style={{
-              background: 'radial-gradient(circle, rgba(139,92,246,0.18) 0%, transparent 65%)',
-              filter: 'blur(60px)',
-            }}
-          />
-          {/* Ambient glow – bottom left */}
-          <div
-            className="pointer-events-none fixed bottom-0 left-56 h-[300px] w-[300px] opacity-20"
-            style={{
-              background: 'radial-gradient(circle, rgba(59,130,246,0.18) 0%, transparent 65%)',
-              filter: 'blur(60px)',
-            }}
-          />
-          <div className="relative">
-            <Outlet />
-          </div>
+        {isDemo && (
+          <p className="border-b bg-sunken/60 px-4 py-2 text-center text-xs text-muted-foreground lg:hidden">
+            Tryb demo: dane przykładowe, zmiany znikają po odświeżeniu.
+          </p>
+        )}
+        <main id="tresc" className="mx-auto max-w-[1180px] px-4 pb-28 pt-6 sm:px-6 lg:px-10 lg:pb-16 lg:pt-8">
+          <Outlet />
         </main>
       </div>
+      <MobileNav />
     </div>
   );
 }

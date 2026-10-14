@@ -1,84 +1,166 @@
-import { useEffect, useState } from 'react';
-import { Bell, Plus, Trash2, ToggleLeft, ToggleRight } from 'lucide-react';
-import { useAlerts } from '@/hooks/useAlerts';
+import { useState, type FormEvent } from 'react';
+import { api } from '@/lib/api';
+import { useQuery } from '@/hooks/useQuery';
+import { timeAgo } from '@/lib/utils';
 import type { Alert } from '@/types';
+import PageHeader from '@/components/ui/PageHeader';
+import Panel from '@/components/ui/Panel';
+import Switch from '@/components/ui/Switch';
+import MatchMeter from '@/components/ui/MatchMeter';
+import { Button } from '@/components/ui/Button';
+import { EmptyState, ErrorState, LoadingRows } from '@/components/ui/States';
+import { inputClass, labelClass } from '@/components/ui/field';
+
+const splitList = (value: string) => value.split(',').map(s => s.trim()).filter(Boolean);
 
 export default function AlertsPage() {
-  const { alerts, loading, fetchAlerts, createAlert, updateAlert, deleteAlert } = useAlerts();
+  const { data: alerts, setData, error, loading, reload } = useQuery(
+    () => api.get<Alert[]>('/api/alerts').then(r => r.data),
+    [],
+    'Nie udało się wczytać alertów.',
+  );
   const [showForm, setShowForm] = useState(false);
-  const [minScore, setMinScore] = useState(75);
+  const [minScore, setMinScore] = useState(80);
+  const [keywords, setKeywords] = useState('');
+  const [locations, setLocations] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
 
-  useEffect(() => { fetchAlerts(); }, []);
-
-  const handleCreate = async (e: React.FormEvent) => {
+  const create = async (e: FormEvent) => {
     e.preventDefault();
-    await createAlert({ min_score: minScore, keywords: [], locations: [], is_active: true });
-    setShowForm(false);
+    setSaving(true);
+    setActionError(null);
+    try {
+      const { data } = await api.post<Alert>('/api/alerts', {
+        min_score: minScore,
+        keywords: splitList(keywords),
+        locations: splitList(locations),
+        is_active: true,
+      });
+      setData([...(alerts ?? []), data]);
+      setShowForm(false);
+      setKeywords('');
+      setLocations('');
+    } catch {
+      setActionError('Nie udało się zapisać alertu. Spróbuj ponownie.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const toggle = async (alert: Alert) => {
+    if (!alerts) return;
+    const previous = alerts;
+    setData(alerts.map(a => (a.id === alert.id ? { ...a, is_active: !a.is_active } : a)));
+    try {
+      await api.patch(`/api/alerts/${alert.id}`, { is_active: !alert.is_active });
+    } catch {
+      setData(previous);
+      setActionError('Nie udało się zmienić alertu. Spróbuj ponownie.');
+    }
+  };
+
+  const remove = async (id: string) => {
+    if (!alerts) return;
+    const previous = alerts;
+    setConfirmDelete(null);
+    setData(alerts.filter(a => a.id !== id));
+    try {
+      await api.delete(`/api/alerts/${id}`);
+    } catch {
+      setData(previous);
+      setActionError('Nie udało się usunąć alertu. Spróbuj ponownie.');
+    }
   };
 
   return (
-    <div className="mx-auto max-w-xl space-y-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Alerty</h1>
-        <button
-          onClick={() => setShowForm(s => !s)}
-          className="flex items-center gap-2 rounded-lg bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground"
-        >
-          <Plus className="h-4 w-4" /> Nowy alert
-        </button>
-      </div>
+    <div className="mx-auto max-w-3xl animate-settle">
+      <PageHeader
+        title="Alerty e-mail"
+        description="Napiszemy, gdy pojawi się oferta z dopasowaniem powyżej Twojego progu. Nowe oferty sprawdzamy co godzinę."
+        action={!showForm && <Button onClick={() => setShowForm(true)}>Nowy alert</Button>}
+      />
+
+      {actionError && <ErrorState message={actionError} className="mb-4" />}
 
       {showForm && (
-        <form onSubmit={handleCreate} className="rounded-xl border bg-background p-4 shadow-sm space-y-3">
-          <h2 className="font-semibold">Nowy alert</h2>
-          <div>
-            <label className="mb-1 block text-sm font-medium">Minimalny match score: {minScore}%</label>
-            <input
-              type="range" min={50} max={95} step={5}
-              value={minScore}
-              onChange={e => setMinScore(parseInt(e.target.value))}
-              className="w-full"
-            />
-          </div>
-          <div className="flex gap-2">
-            <button type="submit" className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground">Utwórz</button>
-            <button type="button" onClick={() => setShowForm(false)} className="rounded-lg border px-4 py-2 text-sm">Anuluj</button>
-          </div>
-        </form>
-      )}
-
-      {loading ? (
-        <div className="space-y-3">{[...Array(2)].map((_, i) => <div key={i} className="h-16 animate-pulse rounded-xl bg-secondary" />)}</div>
-      ) : alerts.length === 0 ? (
-        <div className="rounded-xl border-2 border-dashed p-10 text-center">
-          <Bell className="mx-auto mb-2 h-8 w-8 text-muted-foreground/50" />
-          <p className="font-semibold">Brak alertów</p>
-          <p className="text-sm text-muted-foreground">Utwórz alert, by otrzymywać powiadomienia o nowych ofertach.</p>
-        </div>
-      ) : (
-        <div className="space-y-3">
-          {alerts.map((alert: Alert) => (
-            <div key={alert.id} className="flex items-center justify-between rounded-xl border bg-background p-4 shadow-sm">
+        <Panel title="Nowy alert" className="mb-6">
+          <form onSubmit={create} className="space-y-5">
+            <div>
+              <label htmlFor="threshold" className={labelClass}>Minimalne dopasowanie: <span className="num">{minScore}%</span></label>
+              <input
+                id="threshold"
+                type="range"
+                min={50}
+                max={95}
+                step={5}
+                value={minScore}
+                onChange={e => setMinScore(Number(e.target.value))}
+                className="h-11 w-full accent-[hsl(var(--primary))]"
+              />
+              <MatchMeter score={minScore} size="sm" className="mt-1" />
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2">
               <div>
-                <p className="font-medium">Match ≥ {alert.min_score}%</p>
-                <p className="text-sm text-muted-foreground">
-                  {alert.last_sent_at ? `Ostatnio: ${new Date(alert.last_sent_at).toLocaleDateString('pl-PL')}` : 'Nie wysłano jeszcze'}
-                </p>
+                <label htmlFor="keywords" className={labelClass}>Słowa kluczowe</label>
+                <input id="keywords" value={keywords} onChange={e => setKeywords(e.target.value)} placeholder="np. React, TypeScript" className={inputClass} />
+                <p className="mt-1 text-meta text-muted-foreground">Oddziel przecinkami. Puste: wszystkie oferty.</p>
               </div>
-              <div className="flex items-center gap-2">
-                <button onClick={() => updateAlert(alert.id, { is_active: !alert.is_active })}>
-                  {alert.is_active
-                    ? <ToggleRight className="h-6 w-6 text-primary" />
-                    : <ToggleLeft className="h-6 w-6 text-muted-foreground" />
-                  }
-                </button>
-                <button onClick={() => deleteAlert(alert.id)} className="rounded-md p-1.5 hover:bg-accent">
-                  <Trash2 className="h-4 w-4 text-destructive" />
-                </button>
+              <div>
+                <label htmlFor="locations" className={labelClass}>Miejsca</label>
+                <input id="locations" value={locations} onChange={e => setLocations(e.target.value)} placeholder="np. Kraków, Zdalnie" className={inputClass} />
+                <p className="mt-1 text-meta text-muted-foreground">Oddziel przecinkami. Puste: cała Polska.</p>
               </div>
             </div>
+            <div className="flex flex-wrap gap-2">
+              <Button type="submit" disabled={saving}>{saving ? 'Zapisuję…' : 'Zapisz alert'}</Button>
+              <Button variant="ghost" onClick={() => setShowForm(false)}>Anuluj</Button>
+            </div>
+          </form>
+        </Panel>
+      )}
+
+      {error ? (
+        <ErrorState message={error} onRetry={reload} />
+      ) : loading && !alerts ? (
+        <LoadingRows rows={2} label="Wczytuję alerty" />
+      ) : !alerts?.length ? (
+        !showForm && (
+          <EmptyState title="Nie masz jeszcze alertów" action={<Button onClick={() => setShowForm(true)}>Ustaw pierwszy alert</Button>}>
+            Ustaw próg dopasowania, np. 80%. Dostaniesz e-mail tylko wtedy, gdy pojawi się oferta, która go przekracza.
+          </EmptyState>
+        )
+      ) : (
+        <ul className="divide-y rounded-lg border bg-surface">
+          {alerts.map(alert => (
+            <li key={alert.id} className="grid gap-3 px-5 py-4 sm:grid-cols-[6rem_minmax(0,1fr)_auto] sm:items-center">
+              <p className="font-display text-3xl leading-none">
+                <span className="num">{alert.min_score}</span><span className="text-xl text-muted-foreground">%+</span>
+              </p>
+              <div className="min-w-0">
+                <p className="font-medium">
+                  {alert.keywords.length ? alert.keywords.join(', ') : 'Wszystkie oferty'}
+                  <span className="font-normal text-muted-foreground"> · {alert.locations.length ? alert.locations.join(', ') : 'cała Polska'}</span>
+                </p>
+                <p className="text-meta text-muted-foreground">
+                  {!alert.is_active ? 'Wstrzymany' : alert.last_sent_at ? `Ostatni e-mail ${timeAgo(alert.last_sent_at)}` : 'Jeszcze nic nie wysłano'}
+                </p>
+              </div>
+              <div className="flex items-center gap-1 sm:justify-end">
+                <Switch checked={alert.is_active} onChange={() => void toggle(alert)} label={`Alert od ${alert.min_score}%: ${alert.is_active ? 'włączony' : 'wyłączony'}`} />
+                {confirmDelete === alert.id ? (
+                  <span className="flex items-center gap-1">
+                    <Button variant="danger" size="sm" className="h-11" onClick={() => void remove(alert.id)}>Usuń</Button>
+                    <Button variant="ghost" size="sm" className="h-11" onClick={() => setConfirmDelete(null)}>Anuluj</Button>
+                  </span>
+                ) : (
+                  <Button variant="ghost" size="sm" className="h-11" onClick={() => setConfirmDelete(alert.id)}>Usuń</Button>
+                )}
+              </div>
+            </li>
           ))}
-        </div>
+        </ul>
       )}
     </div>
   );

@@ -1,62 +1,60 @@
-import { useAuthStore } from '@/store/authStore';
-import { useAuth } from '@/hooks/useAuth';
-import { Crown, LogOut } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { useAuthStore } from '@/store/authStore';
+import { signOut } from '@/hooks/useAuth';
+import { isDemo } from '@/lib/env';
+import { formatDate } from '@/lib/utils';
+import PageHeader from '@/components/ui/PageHeader';
+import Panel from '@/components/ui/Panel';
+import { Button } from '@/components/ui/Button';
+import { buttonVariants } from '@/components/ui/buttonVariants';
+
+const planName = { free: 'Free', pro: 'Pro', premium: 'Premium' } as const;
+const planNote = {
+  free: 'Top 10 ofert dziennie i 1 alert tygodniowo.',
+  pro: '29 zł miesięcznie. Bez limitu ofert i alertów, 10 listów motywacyjnych w miesiącu.',
+  premium: '99 zł miesięcznie. Wszystko z Pro i listy bez limitu.',
+} as const;
 
 export default function SettingsPage() {
   const { profile, user } = useAuthStore();
-  const { signOut } = useAuth();
+  const plan = profile?.plan ?? 'free';
+
+  const rows: [string, string][] = [
+    ['Imię i nazwisko', profile?.full_name ?? 'Nie podano'],
+    ['E-mail', profile?.email ?? user?.email ?? 'Nie podano'],
+    ['Konto od', profile?.created_at ? formatDate(profile.created_at) : 'Nie podano'],
+  ];
 
   return (
-    <div className="mx-auto max-w-lg space-y-6">
-      <h1 className="text-2xl font-bold">Ustawienia</h1>
+    <div className="mx-auto max-w-2xl animate-settle">
+      <PageHeader title="Ustawienia" />
 
-      <div className="rounded-xl border bg-background p-6 shadow-sm space-y-4">
-        <h2 className="font-semibold">Twoje konto</h2>
-        <div className="space-y-2 text-sm">
-          <div className="flex justify-between">
-            <span className="text-muted-foreground">E-mail</span>
-            <span>{user?.email}</span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-muted-foreground">Plan</span>
-            <span className={`font-semibold ${profile?.plan === 'free' ? 'text-muted-foreground' : 'text-primary'}`}>
-              {profile?.plan?.toUpperCase() ?? 'FREE'}
-            </span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-muted-foreground">Konto od</span>
-            <span>{profile?.created_at ? new Date(profile.created_at).toLocaleDateString('pl-PL') : '—'}</span>
-          </div>
-        </div>
-      </div>
+      <div className="space-y-6">
+        <Panel title="Konto" bodyClassName="p-0">
+          <dl className="divide-y">
+            {rows.map(([label, value]) => (
+              <div key={label} className="grid gap-1 px-5 py-3.5 sm:grid-cols-[12rem_minmax(0,1fr)]">
+                <dt className="text-meta text-muted-foreground sm:text-sm">{label}</dt>
+                <dd className="break-words text-sm font-medium">{value}</dd>
+              </div>
+            ))}
+          </dl>
+        </Panel>
 
-      {profile?.plan === 'free' && (
-        <div className="rounded-xl border border-yellow-200 bg-yellow-50 p-6">
-          <div className="flex items-center gap-2 mb-2">
-            <Crown className="h-5 w-5 text-yellow-600" />
-            <h2 className="font-semibold text-yellow-800">Przejdź na Pro</h2>
-          </div>
-          <p className="text-sm text-yellow-700 mb-4">
-            Odblokuj unlimited oferty, alerty real-time, listy motywacyjne i tygodniowy raport kariery.
+        <Panel title={`Plan ${planName[plan]}`} action={<Link to="/pricing" className="text-sm font-medium text-primary hover:underline">Porównaj plany</Link>}>
+          <p className="text-sm text-muted-foreground">{planNote[plan]}</p>
+          {plan === 'free' && <Link to="/pricing" className={buttonVariants({ className: 'mt-4' })}>Przejdź na Pro</Link>}
+        </Panel>
+
+        {isDemo && (
+          <p className="rounded-lg bg-sunken/70 px-5 py-4 text-sm text-muted-foreground">
+            To konto demonstracyjne. Dane są przykładowe, e-maile nie są wysyłane, a zmiany znikają po odświeżeniu strony.
           </p>
-          <Link
-            to="/pricing"
-            className="inline-flex items-center gap-2 rounded-lg bg-yellow-600 px-4 py-2 text-sm font-semibold text-white hover:bg-yellow-700"
-          >
-            <Crown className="h-4 w-4" /> Porównaj plany
-          </Link>
-        </div>
-      )}
+        )}
 
-      <div className="rounded-xl border bg-background p-6 shadow-sm">
-        <h2 className="mb-4 font-semibold">Akcje</h2>
-        <button
-          onClick={signOut}
-          className="flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium text-destructive hover:bg-destructive/5"
-        >
-          <LogOut className="h-4 w-4" /> Wyloguj się
-        </button>
+        <div className="flex justify-end">
+          <Button variant="danger" onClick={() => void signOut()}>Wyloguj się</Button>
+        </div>
       </div>
     </div>
   );

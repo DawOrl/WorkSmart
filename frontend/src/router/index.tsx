@@ -1,4 +1,4 @@
-import { createBrowserRouter, RouterProvider } from 'react-router-dom';
+import { createBrowserRouter, Outlet, RouterProvider, ScrollRestoration } from 'react-router-dom';
 import ProtectedRoute from './ProtectedRoute';
 import LandingPage from '@/pages/LandingPage';
 import AuthPage from '@/pages/AuthPage';
@@ -14,24 +14,38 @@ import SettingsPage from '@/pages/SettingsPage';
 import NotFoundPage from '@/pages/NotFoundPage';
 import PageLayout from '@/components/layout/PageLayout';
 
+function Root() {
+  return (
+    <>
+      <ScrollRestoration />
+      <Outlet />
+    </>
+  );
+}
+
 const router = createBrowserRouter([
-  { path: '/', element: <LandingPage /> },
-  { path: '/auth', element: <AuthPage /> },
-  { path: '/pricing', element: <PricingPage /> },
   {
-    element: <ProtectedRoute><PageLayout /></ProtectedRoute>,
+    element: <Root />,
     children: [
-      { path: '/dashboard', element: <DashboardPage /> },
-      { path: '/cv', element: <CVPage /> },
-      { path: '/jobs', element: <JobsPage /> },
-      { path: '/jobs/:id', element: <JobDetailPage /> },
-      { path: '/tracker', element: <TrackerPage /> },
-      { path: '/alerts', element: <AlertsPage /> },
-      { path: '/letter', element: <LetterWriterPage /> },
-      { path: '/settings', element: <SettingsPage /> },
+      { path: '/', element: <LandingPage /> },
+      { path: '/auth', element: <AuthPage /> },
+      { path: '/pricing', element: <PricingPage /> },
+      {
+        element: <ProtectedRoute><PageLayout /></ProtectedRoute>,
+        children: [
+          { path: '/dashboard', element: <DashboardPage /> },
+          { path: '/cv', element: <CVPage /> },
+          { path: '/jobs', element: <JobsPage /> },
+          { path: '/jobs/:id', element: <JobDetailPage /> },
+          { path: '/tracker', element: <TrackerPage /> },
+          { path: '/alerts', element: <AlertsPage /> },
+          { path: '/letter', element: <LetterWriterPage /> },
+          { path: '/settings', element: <SettingsPage /> },
+        ],
+      },
+      { path: '*', element: <NotFoundPage /> },
     ],
   },
-  { path: '*', element: <NotFoundPage /> },
 ]);
 
 export default function AppRouter() {

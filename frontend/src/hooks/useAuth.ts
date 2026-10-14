@@ -2,44 +2,38 @@ import { useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/store/authStore';
 import { api } from '@/lib/api';
+import type { UserProfile } from '@/types';
 
-export function useAuth() {
-  const { user, session, profile, loading, setUser, setSession, setProfile, setLoading, reset } =
-    useAuthStore();
+/** Subscribe to auth changes once, at the app root. */
+export function useAuthListener() {
+  const { setUser, setSession, setProfile, setLoading } = useAuthStore();
 
   useEffect(() => {
-    // Get initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
+    const apply = async (session: { user?: unknown } | null) => {
+      setSession(session as never);
+      setUser((session?.user ?? null) as never);
       setLoading(false);
-    });
-
-    // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      setLoading(false);
-
-      if (session?.user) {
-        try {
-          const { data } = await api.get('/api/cv/me');
-          setProfile(data);
-        } catch {
-          // Profile not loaded yet – OK
-        }
-      } else {
+      if (!session?.user) {
         setProfile(null);
+        return;
       }
-    });
+      try {
+        const { data } = await api.get<UserProfile>('/api/me');
+        setProfile(data);
+      } catch {
+        // Profile is optional for rendering; pages show their own errors.
+      }
+    };
 
+    supabase.auth.getSession().then(({ data }: { data: { session: { user?: unknown } | null } }) => apply(data.session));
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (_event: string, session: { user?: unknown } | null) => { void apply(session); },
+    );
     return () => subscription.unsubscribe();
   }, [setSession, setUser, setLoading, setProfile]);
+}
 
-  const signOut = async () => {
-    await supabase.auth.signOut();
-    reset();
-  };
-
-  return { user, session, profile, loading, signOut };
+export async function signOut() {
+  await supabase.auth.signOut();
+  useAuthStore.getState().reset();
 }

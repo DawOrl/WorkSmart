@@ -1,219 +1,275 @@
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { FileText, Briefcase, TrendingUp, Bell, ArrowRight, RefreshCw, Sparkles } from 'lucide-react';
-import { useJobs } from '@/hooks/useJobs';
-import { useCV } from '@/hooks/useCV';
+import axios from 'axios';
+import { api } from '@/lib/api';
+import { useQuery } from '@/hooks/useQuery';
 import { useAuthStore } from '@/store/authStore';
-import { formatSalary } from '@/lib/utils';
+import { cn, daysSince, firstName, formatSalary, placeLabel, plural, timeAgo } from '@/lib/utils';
+import type { Alert, Application, CVProfile, MatchScore, PaginatedJobs } from '@/types';
+import PageHeader from '@/components/ui/PageHeader';
+import Panel from '@/components/ui/Panel';
+import MatchMeter from '@/components/ui/MatchMeter';
+import SourceTag from '@/components/ui/SourceTag';
+import { Button } from '@/components/ui/Button';
+import { buttonVariants } from '@/components/ui/buttonVariants';
+import { EmptyState, ErrorState, LoadingRows } from '@/components/ui/States';
 
-const statCards = [
-  { key: 'ats',     label: 'Twój ATS Score',    icon: FileText,    link: '/cv',     gradient: 'from-blue-500 to-cyan-400',    glow: 'rgba(59,130,246,0.20)',  bg: 'bg-blue-50',    iconBg: 'bg-gradient-to-br from-blue-500 to-cyan-400' },
-  { key: 'matched', label: 'Dopasowane oferty',  icon: Briefcase,   link: '/jobs',   gradient: 'from-green-500 to-emerald-400', glow: 'rgba(34,197,94,0.20)',   bg: 'bg-green-50',   iconBg: 'bg-gradient-to-br from-green-500 to-emerald-400' },
-  { key: 'best',    label: 'Najlepszy match',    icon: TrendingUp,  link: '/jobs',   gradient: 'from-purple-500 to-violet-400', glow: 'rgba(168,85,247,0.20)',  bg: 'bg-purple-50',  iconBg: 'bg-gradient-to-br from-purple-500 to-violet-400' },
-  { key: 'alerts',  label: 'Aktywne alerty',     icon: Bell,        link: '/alerts', gradient: 'from-orange-500 to-amber-400',  glow: 'rgba(249,115,22,0.20)',  bg: 'bg-orange-50',  iconBg: 'bg-gradient-to-br from-orange-500 to-amber-400' },
-];
-
-function scoreBadge(score: number) {
-  if (score >= 90) return 'bg-gradient-to-r from-green-500 to-emerald-400 text-white';
-  if (score >= 75) return 'bg-gradient-to-r from-blue-500 to-cyan-400 text-white';
-  if (score >= 55) return 'bg-gradient-to-r from-orange-400 to-amber-400 text-white';
-  return 'bg-gradient-to-r from-red-400 to-rose-400 text-white';
+interface DashboardData {
+  matches: MatchScore[];
+  totalJobs: number;
+  cv: CVProfile | null;
+  applications: Application[];
+  alerts: Alert[];
 }
 
-function useEntrance() {
-  const ref = useRef<HTMLDivElement>(null);
-  const [visible, setVisible] = useState(false);
-  useEffect(() => {
-    const timer = setTimeout(() => setVisible(true), 80);
-    return () => clearTimeout(timer);
-  }, []);
-  return { ref, visible };
+async function loadDashboard(): Promise<DashboardData> {
+  const cvRequest = api.get<CVProfile>('/api/cv/me').then(r => r.data).catch(err => {
+    if (axios.isAxiosError(err) && err.response?.status === 404) return null;
+    throw err;
+  });
+  const [matches, jobs, cv, applications, alerts] = await Promise.all([
+    api.get<{ matches: MatchScore[] }>('/api/matches?limit=100').then(r => r.data.matches),
+    api.get<PaginatedJobs>('/api/jobs?limit=1').then(r => r.data),
+    cvRequest,
+    api.get<Application[]>('/api/applications').then(r => r.data),
+    api.get<Alert[]>('/api/alerts').then(r => r.data),
+  ]);
+  return { matches, totalJobs: jobs.total, cv, applications, alerts };
+}
+
+const stageOrder: { status: Application['status']; label: string }[] = [
+  { status: 'sent', label: 'Wysłane' },
+  { status: 'interview', label: 'Rozmowa' },
+  { status: 'offer', label: 'Oferta' },
+  { status: 'rejected', label: 'Odmowa' },
+];
+
+function greeting() {
+  const hour = new Date().getHours();
+  if (hour < 5 || hour >= 18) return 'Dobry wieczór';
+  return 'Dzień dobry';
+}
+
+function formatMeeting(iso: string) {
+  return new Date(iso).toLocaleString('pl-PL', { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' });
 }
 
 export default function DashboardPage() {
   const { profile } = useAuthStore();
-  const { matches, loading, fetchMatches, refreshMatches } = useJobs();
-  const { cvProfile, loadCV } = useCV();
-  const { visible } = useEntrance();
+  const { data, error, loading, reload } = useQuery(loadDashboard, [], 'Nie udało się wczytać pulpitu.');
+  const [refreshing, setRefreshing] = useState(false);
+  const [refreshNote, setRefreshNote] = useState<string | null>(null);
 
-  useEffect(() => {
-    fetchMatches();
-    loadCV();
-  }, []);
+  const name = firstName(profile?.full_name, profile?.email);
 
-  const topMatches = matches.slice(0, 5);
-  const statValues: Record<string, string | number> = {
-    ats:     cvProfile ? `${cvProfile.ats_score}%` : '—',
-    matched: matches.length,
-    best:    topMatches[0] ? `${topMatches[0].score}%` : '—',
-    alerts:  '—',
+  const refresh = async () => {
+    setRefreshing(true);
+    setRefreshNote(null);
+    try {
+      const { data: res } = await api.post<{ count: number }>('/api/matches/refresh');
+      setRefreshNote(res.count > 0 ? `Dodano ${res.count} nowych dopasowań.` : 'Brak nowych ofert od ostatniego przeliczenia.');
+      await reload();
+    } catch {
+      setRefreshNote('Nie udało się przeliczyć dopasowań. Spróbuj za chwilę.');
+    } finally {
+      setRefreshing(false);
+    }
   };
 
-  const hour = new Date().getHours();
-  const greeting = hour < 12 ? 'Dzień dobry' : hour < 18 ? 'Cześć' : 'Dobry wieczór';
+  const strong = data?.matches.filter(m => m.score >= 80) ?? [];
+  const top = data?.matches.slice(0, 6) ?? [];
 
   return (
-    <div className="space-y-6">
+    <div className="animate-settle">
+      <PageHeader
+        title={name ? `${greeting()}, ${name}.` : `${greeting()}.`}
+        description={
+          data && data.cv
+            ? <>Spośród {data.totalJobs} ofert w bazie <strong className="font-semibold text-foreground">{strong.length} {plural(strong.length, 'pasuje', 'pasują', 'pasuje')}</strong> do Twojego CV w co najmniej 80%.</>
+            : 'Oferty z pięciu portali, ułożone według dopasowania do Twojego CV.'
+        }
+        action={
+          <>
+            <Button variant="secondary" onClick={refresh} disabled={refreshing || loading}>
+              {refreshing ? 'Przeliczam…' : 'Przelicz dopasowania'}
+            </Button>
+            <Link to="/jobs" className={buttonVariants({ variant: 'primary' })}>Wszystkie oferty</Link>
+          </>
+        }
+      />
+      <p className="sr-only" aria-live="polite">{refreshNote}</p>
+      {refreshNote && <p className="-mt-3 mb-5 text-meta text-muted-foreground">{refreshNote}</p>}
 
-      {/* ── Greeting ──────────────────────────────────────────────── */}
-      <div
-        style={{
-          opacity: visible ? 1 : 0,
-          transform: visible ? 'none' : 'translateY(12px)',
-          transition: 'opacity 0.5s ease, transform 0.5s ease',
-        }}
-      >
-        <h1 className="text-2xl font-bold">
-          {greeting}{' '}
-          <span className="gradient-text-animated">
-            {profile?.email?.split('@')[0] ?? 'użytkowniku'}
-          </span>{' '}
-          <span className="animate-float inline-block">👋</span>
-        </h1>
-        <p className="text-muted-foreground">Oto Twoje dzisiejsze dopasowania.</p>
-      </div>
+      {error && <ErrorState message={error} onRetry={reload} className="mb-6" />}
 
-      {/* ── Quick stat cards ──────────────────────────────────────── */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {statCards.map((stat, i) => (
-          <Link
-            key={stat.key}
-            to={stat.link}
-            className="feature-card group relative overflow-hidden rounded-xl border bg-white p-4 shadow-sm"
-            style={{
-              '--glow-color': stat.glow,
-              opacity: visible ? 1 : 0,
-              transform: visible ? 'none' : 'translateY(16px)',
-              transition: `opacity 0.5s ease ${i * 80}ms, transform 0.5s ease ${i * 80}ms, box-shadow 0.3s ease`,
-            } as React.CSSProperties}
-          >
-            {/* Top gradient line */}
-            <div className={`absolute inset-x-0 top-0 h-[3px] bg-gradient-to-r ${stat.gradient}`} />
-
-            {/* Background glow blob */}
-            <div
-              className="pointer-events-none absolute -right-6 -top-6 h-20 w-20 rounded-full opacity-30 transition-opacity duration-300 group-hover:opacity-60"
-              style={{ background: `radial-gradient(circle, ${stat.glow} 0%, transparent 70%)`, filter: 'blur(12px)' }}
-            />
-
-            <div className="flex items-center gap-3">
-              <div className={`relative shrink-0 rounded-lg ${stat.iconBg} p-2 shadow-sm`}>
-                <stat.icon className="h-5 w-5 text-white" />
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground">{stat.label}</p>
-                <p className="text-xl font-bold">{statValues[stat.key]}</p>
-              </div>
-            </div>
-          </Link>
-        ))}
-      </div>
-
-      {/* ── CV missing warning ────────────────────────────────────── */}
-      {!cvProfile && (
-        <div
-          className="relative overflow-hidden rounded-xl border-2 border-dashed border-primary/30 bg-gradient-to-br from-blue-50 to-purple-50 p-6 text-center"
-          style={{
-            opacity: visible ? 1 : 0,
-            transform: visible ? 'none' : 'translateY(12px)',
-            transition: 'opacity 0.5s ease 0.36s, transform 0.5s ease 0.36s',
-          }}
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
+        {/* ── Ranked matches: the decision this screen exists for ───────────── */}
+        <Panel
+          title="Najlepiej dopasowane"
+          description="Kolejność według zgodności Twojego CV z wymaganiami"
+          bodyClassName="p-0"
         >
-          {/* Pulsing ring */}
-          <div className="relative mx-auto mb-3 flex h-14 w-14 items-center justify-center">
-            <span className="absolute h-14 w-14 animate-ping rounded-full bg-primary/15" />
-            <span className="absolute h-10 w-10 animate-pulse rounded-full bg-primary/10" />
-            <FileText className="relative h-7 w-7 text-primary" />
-          </div>
-          <h3 className="font-semibold">Wgraj swoje CV</h3>
-          <p className="mb-4 text-sm text-muted-foreground">
-            Prześlij CV, żeby AI mogło analizować oferty i obliczać dopasowania.
-          </p>
-          <Link
-            to="/cv"
-            className="group inline-flex items-center gap-2 overflow-hidden rounded-lg bg-gradient-to-r from-blue-500 to-purple-600 px-5 py-2.5 text-sm font-semibold text-white shadow-md transition-all hover:scale-105 hover:shadow-lg"
-          >
-            <Sparkles className="h-4 w-4" />
-            Wgraj CV
-            <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
-          </Link>
-        </div>
-      )}
-
-      {/* ── Top matches ───────────────────────────────────────────── */}
-      <div
-        style={{
-          opacity: visible ? 1 : 0,
-          transform: visible ? 'none' : 'translateY(12px)',
-          transition: 'opacity 0.5s ease 0.44s, transform 0.5s ease 0.44s',
-        }}
-      >
-        <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-lg font-semibold">Twoje top dopasowania</h2>
-          <button
-            onClick={() => refreshMatches().then(fetchMatches)}
-            className="flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent"
-          >
-            <RefreshCw className="h-3 w-3" /> Odśwież
-          </button>
-        </div>
-
-        {loading ? (
-          <div className="space-y-3">
-            {[...Array(3)].map((_, i) => (
-              <div key={i} className="relative h-16 overflow-hidden rounded-xl bg-secondary">
-                <div
-                  className="absolute inset-0"
-                  style={{
-                    background: 'linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.6) 50%, transparent 100%)',
-                    backgroundSize: '200% 100%',
-                    animation: `shimmer-sweep 1.5s linear infinite ${i * 0.2}s`,
-                  }}
-                />
-              </div>
-            ))}
-          </div>
-        ) : topMatches.length === 0 ? (
-          <p className="rounded-xl border bg-background p-8 text-center text-muted-foreground">
-            Brak dopasowań – wgraj CV i kliknij Odśwież.
-          </p>
-        ) : (
-          <div className="space-y-2">
-            {topMatches.map((m, i) => (
-              <Link
-                key={m.id}
-                to={`/jobs/${m.job_id}`}
-                className="group flex items-center justify-between rounded-xl border bg-white p-4 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md"
-                style={{
-                  opacity: visible ? 1 : 0,
-                  transform: visible ? 'none' : 'translateX(-8px)',
-                  transition: `opacity 0.4s ease ${0.5 + i * 0.07}s, transform 0.4s ease ${0.5 + i * 0.07}s, box-shadow 0.2s ease`,
-                }}
-              >
-                {/* Rank number */}
-                <span className="mr-3 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-secondary text-xs font-bold text-muted-foreground">
-                  {i + 1}
-                </span>
-                <div className="flex-1 min-w-0">
-                  <p className="truncate font-medium group-hover:text-primary transition-colors">{m.job?.title ?? 'Oferta'}</p>
-                  <p className="truncate text-sm text-muted-foreground">
-                    {m.job?.company} · {m.job?.location} · {formatSalary(m.job?.salary_min, m.job?.salary_max, m.job?.currency)}
-                  </p>
-                </div>
-                <span className={`ml-3 shrink-0 rounded-full px-3 py-1 text-sm font-bold shadow-sm ${scoreBadge(m.score)}`}>
-                  {m.score}%
-                </span>
-              </Link>
-            ))}
-            <Link
-              to="/jobs"
-              className="flex items-center justify-center gap-2 rounded-xl border bg-background p-3 text-sm font-medium text-muted-foreground transition-all hover:bg-accent hover:text-foreground"
+          {loading && !data ? (
+            <LoadingRows rows={5} label="Wczytuję dopasowania" className="rounded-none border-0" />
+          ) : data && !data.cv ? (
+            <EmptyState
+              title="Najpierw wgraj CV"
+              className="m-5"
+              action={<Link to="/cv" className={buttonVariants()}>Wgraj CV</Link>}
             >
-              Zobacz wszystkie oferty <ArrowRight className="h-4 w-4" />
-            </Link>
-          </div>
-        )}
+              Dopasowanie liczymy, porównując umiejętności z CV z wymaganiami każdej oferty. Bez CV nie mamy z czym porównać.
+            </EmptyState>
+          ) : top.length === 0 ? (
+            <EmptyState title="Brak dopasowań" className="m-5" action={<Button onClick={refresh}>Przelicz dopasowania</Button>}>
+              Nowe oferty zbieramy codziennie o 7:00 i 19:00. Przelicz dopasowania, gdy pojawią się w bazie.
+            </EmptyState>
+          ) : (
+            <>
+              <ol className="divide-y">
+                {top.map((m, i) => (
+                  <li key={m.id}>
+                    <Link
+                      to={`/jobs/${m.job_id}`}
+                      className="grid grid-cols-[1.5rem_minmax(0,1fr)] items-center gap-x-4 gap-y-3 px-5 py-4 transition-colors hover:bg-sunken/50 sm:grid-cols-[1.5rem_minmax(0,1fr)_11rem]"
+                    >
+                      <span className="num self-start pt-0.5 font-display text-lg leading-6 text-muted-foreground">{i + 1}</span>
+                      <div className="min-w-0">
+                        <p className="truncate font-medium">{m.job?.title}</p>
+                        <p className="mt-0.5 truncate text-meta text-muted-foreground">
+                          {m.job?.company} · {placeLabel(m.job?.location, m.job?.remote_type)}
+                        </p>
+                        <p className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-meta">
+                          <span className="num">{formatSalary(m.job?.salary_min, m.job?.salary_max, m.job?.currency)}</span>
+                          {m.job && <SourceTag source={m.job.source} />}
+                        </p>
+                      </div>
+                      <MatchMeter score={m.score} size="sm" className="col-start-2 sm:col-start-auto" />
+                    </Link>
+                  </li>
+                ))}
+              </ol>
+              <div className="border-t px-5 py-3">
+                <Link to="/jobs" className="text-sm font-medium underline decoration-foreground/30 underline-offset-4 hover:decoration-foreground">
+                  Wszystkie oferty ({data?.totalJobs})
+                </Link>
+              </div>
+            </>
+          )}
+        </Panel>
+
+        {/* ── Side column: CV, applications in progress, alerts ─────────────── */}
+        <div className="space-y-6">
+          <CVSummary cv={data?.cv} loading={loading && !data} />
+          <TrackerSummary applications={data?.applications} loading={loading && !data} />
+          <AlertSummary alerts={data?.alerts} loading={loading && !data} />
+        </div>
       </div>
     </div>
+  );
+}
+
+function SideSkeleton() {
+  return (
+    <div className="space-y-2" aria-hidden>
+      <div className="animate-skeleton h-3.5 w-1/2 rounded-sm bg-sunken" />
+      <div className="animate-skeleton h-3 w-4/5 rounded-sm bg-sunken/70" />
+    </div>
+  );
+}
+
+function CVSummary({ cv, loading }: { cv?: CVProfile | null; loading: boolean }) {
+  const topFix = cv?.suggestions.find(s => s.impact === 'high') ?? cv?.suggestions[0];
+  return (
+    <Panel title="Twoje CV" action={cv && <Link to="/cv" className="text-sm font-medium text-primary hover:underline">Analiza</Link>}>
+      {loading ? <SideSkeleton /> : !cv ? (
+        <p className="text-sm text-muted-foreground">
+          Brak CV. <Link to="/cv" className="font-medium text-foreground underline underline-offset-4">Wgraj plik PDF lub DOCX</Link>, a policzymy dopasowania.
+        </p>
+      ) : (
+        <>
+          <p className="mb-2 text-meta text-muted-foreground">Czytelność dla systemów ATS</p>
+          <MatchMeter score={cv.ats_score} label="Czytelność dla ATS" />
+          {topFix && (
+            <div className="mt-4 border-t pt-3">
+              <p className="text-meta text-muted-foreground">Najważniejsza poprawka</p>
+              <p className="mt-0.5 text-sm font-medium">{topFix.issue}</p>
+            </div>
+          )}
+        </>
+      )}
+    </Panel>
+  );
+}
+
+function TrackerSummary({ applications, loading }: { applications?: Application[]; loading: boolean }) {
+  const next = applications
+    ?.filter(a => a.status === 'interview' && a.follow_up_at)
+    .sort((a, b) => (a.follow_up_at ?? '').localeCompare(b.follow_up_at ?? ''))[0];
+  const silent = applications?.filter(a => a.status === 'sent' && daysSince(a.applied_at) >= 7) ?? [];
+
+  return (
+    <Panel title="Aplikacje w toku" action={<Link to="/tracker" className="text-sm font-medium text-primary hover:underline">Tracker</Link>}>
+      {loading || !applications ? <SideSkeleton /> : applications.length === 0 ? (
+        <p className="text-sm text-muted-foreground">Jeszcze nic nie śledzisz. Zapisz ofertę w trackerze z poziomu jej karty.</p>
+      ) : (
+        <>
+          <dl className="grid grid-cols-4 gap-2 text-center">
+            {stageOrder.map(({ status, label }) => {
+              const count = applications.filter(a => a.status === status).length;
+              return (
+                <div key={status} className={cn('rounded-md py-2', count ? 'bg-sunken/70' : 'bg-transparent')}>
+                  <dd className="num font-display text-2xl leading-7">{count}</dd>
+                  <dt className="text-[0.6875rem] font-medium text-muted-foreground">{label}</dt>
+                </div>
+              );
+            })}
+          </dl>
+          {next && (
+            <div className="mt-4 border-t pt-3">
+              <p className="text-meta text-muted-foreground">Najbliższa rozmowa</p>
+              <p className="mt-0.5 text-sm font-medium">{next.job?.company}: {next.job?.title}</p>
+              <p className="text-sm first-letter:uppercase">{formatMeeting(next.follow_up_at!)}</p>
+            </div>
+          )}
+          {silent.length > 0 && (
+            <div className="mt-3 border-t pt-3">
+              <p className="text-meta text-muted-foreground">Bez odpowiedzi od tygodnia</p>
+              <ul className="mt-0.5 space-y-0.5 text-sm">
+                {silent.map(a => (
+                  <li key={a.id}>
+                    {a.job?.company} <span className="text-muted-foreground">({daysSince(a.applied_at)} dni)</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </>
+      )}
+    </Panel>
+  );
+}
+
+function AlertSummary({ alerts, loading }: { alerts?: Alert[]; loading: boolean }) {
+  const active = alerts?.filter(a => a.is_active) ?? [];
+  return (
+    <Panel title="Alerty e-mail" action={<Link to="/alerts" className="text-sm font-medium text-primary hover:underline">Ustawienia</Link>}>
+      {loading || !alerts ? <SideSkeleton /> : active.length === 0 ? (
+        <p className="text-sm text-muted-foreground">Żaden alert nie jest włączony. Ustaw próg, a napiszemy, gdy pojawi się pasująca oferta.</p>
+      ) : (
+        <ul className="space-y-3">
+          {active.map(a => (
+            <li key={a.id} className="text-sm">
+              <p className="font-medium">Dopasowanie od {a.min_score}%</p>
+              <p className="text-muted-foreground">
+                {[...a.keywords, ...a.locations].join(', ') || 'Wszystkie oferty'}
+              </p>
+              <p className="text-meta text-muted-foreground">
+                {a.last_sent_at ? `Ostatni e-mail ${timeAgo(a.last_sent_at)}` : 'Jeszcze nic nie wysłano'}
+              </p>
+            </li>
+          ))}
+        </ul>
+      )}
+    </Panel>
   );
 }
