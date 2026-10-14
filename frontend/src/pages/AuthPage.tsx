@@ -1,29 +1,41 @@
-import { useState } from 'react';
-import { Navigate, useNavigate } from 'react-router-dom';
+import { useState, type FormEvent } from 'react';
+import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
+import { isDemo } from '@/lib/env';
 import { useAuthStore } from '@/store/authStore';
-import { Briefcase } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import Wordmark from '@/components/ui/Wordmark';
+import { Button } from '@/components/ui/Button';
+import { inputClass, labelClass } from '@/components/ui/field';
+
+type Mode = 'signin' | 'signup';
 
 export default function AuthPage() {
   const { user } = useAuthStore();
   const navigate = useNavigate();
-  const [mode, setMode] = useState<'signin' | 'signup'>('signin');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const location = useLocation();
+  const from = (location.state as { from?: string } | null)?.from ?? '/dashboard';
+
+  const [mode, setMode] = useState<Mode>('signin');
+  const [email, setEmail] = useState(isDemo ? 'demo@worksmart.pl' : '');
+  const [password, setPassword] = useState(isDemo ? 'demo-haslo' : '');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  if (user) return <Navigate to="/dashboard" replace />;
+  if (user) return <Navigate to={from} replace />;
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setError('');
+    if (mode === 'signup' && password.length < 8) {
+      setError('Hasło musi mieć co najmniej 8 znaków.');
+      return;
+    }
     setLoading(true);
     try {
       if (mode === 'signup') {
         const { error } = await supabase.auth.signUp({ email, password });
         if (error) throw error;
-        // Create profile row
         const { data: userData } = await supabase.auth.getUser();
         if (userData.user) {
           await supabase.from('profiles').upsert({ id: userData.user.id, email, plan: 'free' });
@@ -32,71 +44,87 @@ export default function AuthPage() {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
       }
-      navigate('/dashboard');
+      navigate(from, { replace: true });
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Wystąpił błąd');
+      setError(err instanceof Error ? 'Nie udało się zalogować. Sprawdź e-mail i hasło.' : 'Coś poszło nie tak. Spróbuj ponownie.');
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-secondary/20 p-4">
-      <div className="w-full max-w-md rounded-2xl border bg-background p-8 shadow-lg">
-        <div className="mb-6 flex items-center gap-2">
-          <Briefcase className="h-6 w-6 text-primary" />
-          <span className="text-xl font-bold">WorkSmart</span>
-        </div>
-        <h1 className="mb-1 text-2xl font-bold">
-          {mode === 'signin' ? 'Zaloguj się' : 'Załóż konto'}
-        </h1>
-        <p className="mb-6 text-sm text-muted-foreground">
-          {mode === 'signin' ? 'Wróć do swoich dopasowań' : 'Zacznij za darmo, bez karty kredytowej'}
-        </p>
+    <div className="grid min-h-dvh lg:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)]">
+      <div className="flex flex-col px-4 py-6 sm:px-10">
+        <Link to="/" className="self-start rounded-sm" aria-label="WorkSmart, strona główna"><Wordmark /></Link>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="mb-1.5 block text-sm font-medium">E-mail</label>
-            <input
-              type="email"
-              value={email}
-              onChange={e => setEmail(e.target.value)}
-              required
-              className="w-full rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-              placeholder="jan@example.com"
-            />
-          </div>
-          <div>
-            <label className="mb-1.5 block text-sm font-medium">Hasło</label>
-            <input
-              type="password"
-              value={password}
-              onChange={e => setPassword(e.target.value)}
-              required
-              className="w-full rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-              placeholder="••••••••"
-            />
-          </div>
-          {error && <p className="rounded-lg bg-destructive/10 p-3 text-sm text-destructive">{error}</p>}
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full rounded-lg bg-primary py-2.5 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-50"
-          >
-            {loading ? 'Ładowanie...' : mode === 'signin' ? 'Zaloguj się' : 'Utwórz konto'}
-          </button>
-        </form>
+        <main className="mx-auto flex w-full max-w-sm flex-1 flex-col justify-center py-12">
+          <h1 className="font-display text-4xl font-medium leading-[1.1] tracking-[-0.01em]">
+            {mode === 'signin' ? 'Wróć do swoich dopasowań' : 'Załóż konto'}
+          </h1>
+          <p className="mt-2 text-muted-foreground">
+            {mode === 'signin' ? 'Zaloguj się, żeby zobaczyć nowe oferty i etap swoich aplikacji.' : 'Plan Free jest bezpłatny i nie wymaga karty.'}
+          </p>
 
-        <p className="mt-4 text-center text-sm text-muted-foreground">
-          {mode === 'signin' ? 'Nie masz konta?' : 'Masz już konto?'}{' '}
-          <button
-            onClick={() => setMode(mode === 'signin' ? 'signup' : 'signin')}
-            className="font-medium text-primary hover:underline"
-          >
-            {mode === 'signin' ? 'Zarejestruj się' : 'Zaloguj się'}
-          </button>
-        </p>
+          <div className="mt-8 flex h-11 rounded-md border border-input p-1" role="tablist" aria-label="Logowanie lub rejestracja">
+            {(['signin', 'signup'] as Mode[]).map(m => (
+              <button
+                key={m}
+                type="button"
+                role="tab"
+                aria-selected={mode === m}
+                onClick={() => { setMode(m); setError(''); }}
+                className={cn('flex-1 rounded-sm text-sm transition-colors', mode === m ? 'bg-foreground text-background' : 'text-muted-foreground hover:text-foreground')}
+              >
+                {m === 'signin' ? 'Logowanie' : 'Rejestracja'}
+              </button>
+            ))}
+          </div>
+
+          <form onSubmit={handleSubmit} className="mt-6 space-y-4">
+            <div>
+              <label htmlFor="email" className={labelClass}>E-mail</label>
+              <input id="email" type="email" autoComplete="email" value={email} onChange={e => setEmail(e.target.value)} required className={inputClass} placeholder="twoj@email.pl" />
+            </div>
+            <div>
+              <label htmlFor="password" className={labelClass}>Hasło</label>
+              <input
+                id="password"
+                type="password"
+                autoComplete={mode === 'signin' ? 'current-password' : 'new-password'}
+                value={password}
+                onChange={e => setPassword(e.target.value)}
+                required
+                className={inputClass}
+                aria-describedby={mode === 'signup' ? 'password-hint' : undefined}
+              />
+              {mode === 'signup' && <p id="password-hint" className="mt-1 text-meta text-muted-foreground">Co najmniej 8 znaków.</p>}
+            </div>
+            {error && <p role="alert" className="rounded-md bg-destructive-soft px-3 py-2.5 text-sm text-destructive">{error}</p>}
+            <Button type="submit" size="lg" disabled={loading} className="w-full">
+              {loading ? 'Chwileczkę…' : mode === 'signin' ? 'Zaloguj się' : 'Utwórz konto'}
+            </Button>
+          </form>
+
+          {isDemo && (
+            <p className="mt-6 rounded-md bg-sunken/70 px-4 py-3 text-sm text-muted-foreground">
+              <span className="font-medium text-foreground">Wersja demo.</span> Zaloguje Cię dowolny e-mail i hasło. Zobaczysz konto przykładowej kandydatki z wgranym CV.
+            </p>
+          )}
+        </main>
       </div>
+
+      <aside className="relative hidden flex-col justify-end overflow-hidden border-l bg-sunken/60 p-12 lg:flex" aria-hidden>
+        <img
+          src="/img/dopasowanie-zlozone.webp"
+          alt=""
+          width={900}
+          height={647}
+          className="absolute left-1/2 top-[42%] w-[78%] max-w-[620px] -translate-x-1/2 -translate-y-1/2"
+        />
+        <p className="relative max-w-sm font-display text-2xl leading-snug">
+          Twoje CV z jednej strony, wymagania oferty z drugiej. Pokazujemy, gdzie do siebie pasują.
+        </p>
+      </aside>
     </div>
   );
 }
