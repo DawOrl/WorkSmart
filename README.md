@@ -78,8 +78,10 @@ Statyczne demo buduje się poleceniem `npm run build:demo` (wynik w `frontend/di
 
 Publiczne demo to statyczny build frontendu. Nie potrzebuje backendu, bazy ani żadnych zmiennych środowiskowych. Cała konfiguracja jest w `vercel.json` w katalogu głównym repo: instalacja `npm ci`, build `npm run build:demo`, katalog wyjściowy `frontend/dist` i przekierowanie wszystkich ścieżek SPA na `index.html`.
 
+Istniejący projekt Vercela `work-smart-frontend` ma Root Directory ustawione na `frontend`, a wtedy Vercel nie widzi `vercel.json` z katalogu głównego. Dlatego `frontend/vercel.json` robi to samo z poziomu `frontend/`: instaluje i buduje demo w katalogu głównym repo (`cd ..`), a wynik bierze z `dist`. Demo zbuduje się więc przy obu ustawieniach Root Directory. Przy `frontend` w ustawieniach projektu musi zostać włączona opcja „Include files outside the root directory in the Build Step”.
+
 1. Na vercel.com wybierz **Add New… → Project** i zaimportuj repozytorium `DawOrl/WorkSmart`.
-2. **Root Directory**: zostaw katalog główny repo (`./`). Nie ustawiaj `frontend`, bo build korzysta z danych demo w `backend/src/demo/`.
+2. **Root Directory**: najlepiej katalog główny repo (`./`). `frontend` też zadziała dzięki `frontend/vercel.json`.
 3. **Framework Preset**: Vite (Vercel odczyta go z `vercel.json`). Pól Build Command, Output Directory i Install Command nie zmieniaj, `vercel.json` je nadpisuje.
 4. **Environment Variables**: nie dodawaj żadnych. W szczególności nie wpisuj kluczy Supabase ani Stripe do projektu demo.
 5. Kliknij **Deploy**. Po buildzie sprawdź stronę główną, `/auth` (logowanie dowolnymi danymi), `/dashboard`, `/jobs`, kartę oferty, `/tracker`, `/cv`, `/letter` oraz odświeżenie przeglądarki na podstronie (np. `/tracker`), które musi działać dzięki przekierowaniu SPA.
