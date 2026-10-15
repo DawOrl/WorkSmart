@@ -92,7 +92,9 @@ npm run build:demo
 cd frontend && npx vite preview --port 4173
 ```
 
-Uwaga: workflow `.github/workflows/deploy.yml` wdraża zwykły (nie-demo) frontend z katalogu `frontend/` przy każdym pushu na `main`, jeśli w repo są sekrety `VERCEL_*`. Projekt demo podpięty przez integrację Git Vercela działa niezależnie od niego. Jeśli repo ma służyć tylko jako demo, wyłącz ten workflow albo usuń sekrety, żeby wdrożenia się nie dublowały.
+Demo wdraża wyłącznie integracja Git Vercela z katalogu głównego repo (`vercel.json`). Workflow `.github/workflows/deploy.yml` (zwykły, nie-demo frontend z `frontend/`, `vercel --prod`) uruchamia się tylko ręcznie (`workflow_dispatch`), żeby push na `main` nie robił drugiego, konkurencyjnego wdrożenia produkcyjnego, które nadpisałoby demo.
+
+Build demo przypina zmienne `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `VITE_STRIPE_PUBLISHABLE_KEY` i `VITE_API_URL` do pustych wartości i podmienia `@supabase/supabase-js` na pustą zaślepkę, więc nawet zmienne wpisane omyłkowo w panelu Vercela nie trafią do paczki.
 
 ## Model cenowy
 

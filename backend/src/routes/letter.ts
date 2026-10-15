@@ -8,8 +8,11 @@ import { generateLetter } from '../agents/letterWriter.js';
 
 const router = Router();
 
+// Demo data uses readable ids (job-00000001); real job ids are UUIDs.
+const jobId = process.env.DEMO_MODE === 'true' ? z.string().min(1) : z.string().uuid();
+
 const letterSchema = z.object({
-  job_id: z.string().min(1),
+  job_id: jobId,
   style: z.enum(['formal', 'conversational', 'creative']).default('formal'),
   language: z.enum(['pl', 'en']).default('pl'),
 });

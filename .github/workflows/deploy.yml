@@ -1,9 +1,11 @@
 name: Deploy to Vercel
 
+# Manual only. The public demo is deployed by Vercel's Git integration from the
+# repo root (vercel.json, static demo build). Running this on every push to main
+# would ship a second, non-demo --prod build of ./frontend and could overwrite the
+# demo. Trigger it by hand only for a real (non-demo) frontend project.
 on:
-  push:
-    branches:
-      - main
+  workflow_dispatch:
 
 jobs:
   deploy:

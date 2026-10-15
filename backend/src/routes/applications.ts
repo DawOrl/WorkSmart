@@ -7,8 +7,11 @@ import { supabase } from '../lib/supabase.js';
 
 const router = Router();
 
+// Demo data uses readable ids (job-00000001); real job ids are UUIDs.
+const jobId = process.env.DEMO_MODE === 'true' ? z.string().min(1) : z.string().uuid();
+
 const createSchema = z.object({
-  job_id: z.string().min(1),
+  job_id: jobId,
   status: z.enum(['sent', 'interview', 'rejected', 'offer']).default('sent'),
   notes: z.string().optional(),
   follow_up_at: z.string().datetime().optional(),

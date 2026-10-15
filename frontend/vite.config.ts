@@ -11,11 +11,23 @@ export default defineConfig(({ mode }) => {
   return {
     plugins: [react()],
     envDir: staticDemo ? path.resolve(__dirname, 'src/demo') : __dirname,
-    define: staticDemo ? { 'import.meta.env.VITE_DEMO_STATIC': JSON.stringify('true') } : {},
+    // Values set in the shell or in the Vercel dashboard still reach import.meta.env,
+    // so the static demo pins every key-bearing variable to an empty string.
+    define: staticDemo
+      ? {
+          'import.meta.env.VITE_DEMO_STATIC': JSON.stringify('true'),
+          'import.meta.env.VITE_SUPABASE_URL': JSON.stringify(''),
+          'import.meta.env.VITE_SUPABASE_ANON_KEY': JSON.stringify(''),
+          'import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY': JSON.stringify(''),
+          'import.meta.env.VITE_API_URL': JSON.stringify(''),
+        }
+      : {},
     resolve: {
       alias: {
         '@': path.resolve(__dirname, './src'),
         '@demo-data': path.resolve(__dirname, '../backend/src/demo'),
+        // The demo never talks to Supabase: swap the SDK for a stub so it is not bundled at all.
+        ...(staticDemo ? { '@supabase/supabase-js': path.resolve(__dirname, 'src/demo/supabaseStub.ts') } : {}),
       },
     },
     server: {
